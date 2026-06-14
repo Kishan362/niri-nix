@@ -11,12 +11,12 @@ let
     url = "https://github.com/youwen5/zen-browser-flake/archive/master.tar.gz";
   }) { inherit pkgs; };
 
-  # 3. Fetch the Noctalia Shell ecosystem tarball source
+  # 3. Fetch the Noctalia Shell ecosystem stable repository source
   noctalia-src = builtins.fetchTarball {
-    url = "https://github.com/noctalia-dev/noctalia/archive/master.tar.gz";
+    url = "https://github.com/noctalia-dev/noctalia/archive/legacy-v4.tar.gz";
   };
   
-  # Load the home module expression from Noctalia source
+  # Load the official home module layout safely from the root structure
   noctalia-home-module = import "${noctalia-src}/hm-module.nix"; 
 in
 {
@@ -50,12 +50,12 @@ in
   nix = {
     settings = {
       experimental-features = [ "nix-command" "flakes" ];
-      auto-optimise-store = true; # Deduplicates identical files automatically
+      auto-optimise-store = true; 
     };
     gc = {
       automatic = true;
       dates = "weekly";
-      options = "--delete-older-than 7d"; # Keeps system lean during heavy dev work
+      options = "--delete-older-than 7d"; 
     };
   };
   nixpkgs.config.allowUnfree = true;
@@ -117,7 +117,6 @@ in
     package = config.boot.kernelPackages.nvidiaPackages.stable;
 
     prime = {
-      # Hybrid laptop setup: Runs cool on Intel, shifts gears on demand
       offload.enable = true;
       offload.enableOffloadCmd = true;
       sync.enable = false;
@@ -133,10 +132,11 @@ in
   services.printing.enable = false;
 
   # ============================================================================
-  # 5. POWER MANAGEMENT (TLP Override)
+  # 5. POWER MANAGEMENT & DESKTOP HARDWARE DEPENDENCIES
   # ============================================================================
 
-  services.power-profiles-daemon.enable = lib.mkForce false;
+  services.power-profiles-daemon.enable = true; # Required backplane framework for Noctalia's power status metrics
+  services.upower.enable = true;                 
   services.thermald.enable = true;
 
   services.tlp = {
@@ -168,18 +168,15 @@ in
   services.displayManager.sddm.wayland.enable = false;
   services.desktopManager.plasma6.enable = true;
 
-  # Standalone scrollable window manager mapping
   programs.niri.enable = true;
   programs.dconf.enable = true;
 
-  # XDG Desktop Portals tuned cleanly for KDE to support Niri seamlessly
   xdg.portal = {
     enable = true;
     extraPortals = [ pkgs.kdePackages.xdg-desktop-portal-kde ];
     config.common.default = [ "kde" ];
   };
 
-  # Pipewire Sound Architecture
   services.pipewire = {
     enable = true;
     alsa.enable = true;
@@ -188,7 +185,6 @@ in
     jack.enable = true;
   };
 
-  # Fix rendering behaviors for Electron/Chromium applications on standalone Wayland
   environment.sessionVariables = {
     NIXOS_OZONE_WL = "1";
   };
@@ -244,24 +240,17 @@ in
   };
 
   environment.systemPackages = with pkgs; [
-    # System CLI Utilities
     git gh curl wget axel jq ripgrep fd zip unzip p7zip unrar cabextract
     nano neovim btop htop pciutils iproute2 fastfetch libimobiledevice
-
-    # Media & Environment Tools
     kitty starship vlc kazam obs-studio libreoffice-fresh
     playerctl wl-clipboard cliphist grim slurp swappy cava pavucontrol brightnessctl
-
-    # Development Stack
     gcc gnumake lua5_4 python313 uv nodejs_26 pnpm vscode 
-
-    # Gaming Frameworks
     mangohud protonup-ng goverlay vulkan-tools nvtopPackages.nvidia
     heroic lutris winetricks protonup-qt wineWow64Packages.stable
   ];
 
   # ============================================================================
-  # 9. HOME MANAGER USER SPACE DECLARATIONS (User: jasper)
+  # 9. HOME MANAGER USER SPACE DECLARATIONS (Inline Context)
   # ============================================================================
 
   home-manager = {
@@ -270,38 +259,35 @@ in
 
     users.jasper = { pkgs, ... }: {
       imports = [
-        # Injects the module properties extracted from the noctalia source
         noctalia-home-module
       ];
 
       home.stateVersion = "26.05";
 
-      # Installing Zen Browser inside jasper's user profile space
       home.packages = [
         zen-browser-flake
       ];
 
-      # Activating and tuning Noctalia Shell via its Home Manager module
-      programs.noctalia = {
+      # Verified configuration path layout for the Noctalia framework
+      programs.noctalia-shell = {
         enable = true;
         settings = {
-          # Configure custom docks, panels or layouts safely here
+          bar = {
+            position = "top";
+            density = "compact";
+          };
         };
       };
 
-      # Declarative media key mapping bindings directly for Niri compositor
       xdg.configFile."niri/config.kdl".text = ''
         binds {
-            // Volume control mappings via Wireplumber integration
             "XF86AudioRaiseVolume" allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+" "-m" "1.5"; }
             "XF86AudioLowerVolume" allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-" "-m" "1.5"; }
             "XF86AudioMute"        allow-when-locked=true { spawn "wpctl" "set-mute"   "@DEFAULT_AUDIO_SINK@" "toggle"; }
             
-            // Physical Backlight Brightness Mappings
             "XF86MonBrightnessUp"   allow-when-locked=true { spawn "brightnessctl" "set" "10%+"; }
             "XF86MonBrightnessDown" allow-when-locked=true { spawn "brightnessctl" "set" "10%-"; }
 
-            // Global Media Playback controls via Playerctl
             "XF86AudioPlay"  allow-when-locked=true { spawn "playerctl" "play-pause"; }
             "XF86AudioNext"  allow-when-locked=true { spawn "playerctl" "next"; }
             "XF86AudioPrev"  allow-when-locked=true { spawn "playerctl" "previous"; }
