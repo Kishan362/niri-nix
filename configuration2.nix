@@ -10,14 +10,6 @@ let
   zen-browser-flake = import (builtins.fetchTarball {
     url = "https://github.com/youwen5/zen-browser-flake/archive/master.tar.gz";
   }) { inherit pkgs; };
-
-  # 3. Fetch the Noctalia Shell ecosystem stable repository source
-  noctalia-src = builtins.fetchTarball {
-    url = "https://github.com/noctalia-dev/noctalia/archive/legacy-v4.tar.gz";
-  };
-  
-  # Load the official home module layout safely from the root structure
-  noctalia-home-module = import "${noctalia-src}/hm-module.nix"; 
 in
 {
   imports = [
@@ -35,7 +27,6 @@ in
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # Kernel parameters for stable NVIDIA / Wayland interaction
   boot.kernelParams = [
     "nvidia-drm.modeset=1"
     "nvidia.NVreg_PreserveVideoMemoryAllocations=1"
@@ -71,10 +62,8 @@ in
   networking.firewall = {
     enable = true;
     allowPing = false; 
-
     allowedTCPPorts = [ ];
     allowedUDPPorts = [ ];
-
     allowedUDPPortRanges = [
       { from = 27000; to = 27100; }
       { from = 4380; to = 4380; }
@@ -132,10 +121,10 @@ in
   services.printing.enable = false;
 
   # ============================================================================
-  # 5. POWER MANAGEMENT & DESKTOP HARDWARE DEPENDENCIES
+  # 5. POWER MANAGEMENT & DESKTOP SYSTEM SERVICES
   # ============================================================================
 
-  services.power-profiles-daemon.enable = true; # Required backplane framework for Noctalia's power status metrics
+  services.power-profiles-daemon.enable = true; 
   services.upower.enable = true;                 
   services.thermald.enable = true;
 
@@ -144,15 +133,11 @@ in
     settings = {
       CPU_SCALING_GOVERNOR_ON_AC = "performance";
       CPU_SCALING_GOVERNOR_ON_BAT = "schedutil";
-
       CPU_ENERGY_PERF_POLICY_ON_AC = "performance";
       CPU_ENERGY_PERF_POLICY_ON_BAT = "balance_power";
-
       CPU_MAX_PERF_ON_BAT = 60;
-
       PLATFORM_PROFILE_ON_AC = "performance";
       PLATFORM_PROFILE_ON_BAT = "balanced";
-
       RUNTIME_PM_ON_BAT = "auto";
       USB_AUTOSUSPEND = 1;
       PCIE_ASPM_ON_BAT = "balanced";
@@ -247,10 +232,13 @@ in
     gcc gnumake lua5_4 python313 uv nodejs_26 pnpm vscode 
     mangohud protonup-ng goverlay vulkan-tools nvtopPackages.nvidia
     heroic lutris winetricks protonup-qt wineWow64Packages.stable
+    
+    # Adding quickshell substrate binary directly to allow customization overlays later
+    quickshell
   ];
 
   # ============================================================================
-  # 9. HOME MANAGER USER SPACE DECLARATIONS (Inline Context)
+  # 9. HOME MANAGER USER SPACE DECLARATIONS (Inline Configuration Context)
   # ============================================================================
 
   home-manager = {
@@ -258,27 +246,13 @@ in
     useUserPackages = true;
 
     users.jasper = { pkgs, ... }: {
-      imports = [
-        noctalia-home-module
-      ];
-
       home.stateVersion = "26.05";
 
       home.packages = [
         zen-browser-flake
       ];
 
-      # Verified configuration path layout for the Noctalia framework
-      programs.noctalia-shell = {
-        enable = true;
-        settings = {
-          bar = {
-            position = "top";
-            density = "compact";
-          };
-        };
-      };
-
+      # Clean declarative layout generation for the Niri scrolling compositor
       xdg.configFile."niri/config.kdl".text = ''
         binds {
             "XF86AudioRaiseVolume" allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+" "-m" "1.5"; }
@@ -293,6 +267,14 @@ in
             "XF86AudioPrev"  allow-when-locked=true { spawn "playerctl" "previous"; }
         }
       '';
+      
+      # Declarative Shell Config Generation bypassing the broken external fetch block
+      xdg.configFile."noctalia/config.json".text = builtins.toJSON {
+        bar = {
+          position = "top";
+          density = "compact";
+        };
+      };
     };
   };
 
